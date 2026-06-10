@@ -1,0 +1,55 @@
+[project]
+name = "slack-mcp"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=1.26.0",
+    "slack-sdk>=3.33.0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+]
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling>=1.29.0"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+    "pyright>=1.1.410",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/slack_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib --cov=slack_mcp --cov-report=term-missing"
+pythonpath = ["tests"]
+
+[tool.coverage.run]
+source = ["slack_mcp"]
+omit = ["*/__main__.py"]  # entrypoint: from slack_mcp.server import mcp; mcp.run()
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+
+[tool.pyright]
+include = ["src", "tests"]
+# Resolve `slack_mcp` to the local source and `support`/`conftest` for tests;
+# keeps strict from flagging missing stubs.
+extraPaths = ["src", "tests"]
+typeCheckingMode = "strict"
+
+# Tests legitimately reach into white-box internals (e.g. the client's module
+# singleton), the one strict rule that does not fit test code; rest stays strict.
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportPrivateUsage = false

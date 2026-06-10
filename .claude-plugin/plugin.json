@@ -1,0 +1,15 @@
+{
+  "name": "slack",
+  "description": "Slack in Claude — channels, messages, users, and search via MCP",
+  "repository": "https://github.com/byExist/craken-slack",
+  "defaultEnabled": false,
+  "userConfig": {
+    "slack_token": {
+      "type": "string",
+      "title": "Slack OAuth token",
+      "description": "Bot token (xoxb-…) or user token (xoxp-…). Create a Slack app at api.slack.com/apps, add scopes, install it to your workspace, and copy the OAuth token. Stored in the OS keychain, not in settings.json.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

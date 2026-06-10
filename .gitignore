@@ -1,0 +1,7 @@
+__pycache__/
+.venv/
+
+# Editor + test/coverage artifacts (never distributed; wheel ships only src/slack_mcp)
+.vscode/
+.pytest_cache/
+.coverage

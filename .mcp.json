@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "slack": {
+      "command": "uv",
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "python", "-m", "slack_mcp"],
+      "env": {
+        "SLACK_TOKEN": "${user_config.slack_token}"
+      }
+    }
+  }
+}
