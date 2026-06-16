@@ -21,6 +21,7 @@ ALL = [
     "slack_list_users",
     "slack_get_user",
     "slack_get_file",
+    "slack_download_file",
     "slack_search_messages",
     "slack_post_message",
     "slack_update_message",

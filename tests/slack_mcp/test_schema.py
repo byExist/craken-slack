@@ -7,6 +7,7 @@ never reach an MCP response.
 """
 
 from slack_mcp.schema.channel import Channel, ChannelList
+from slack_mcp.schema.file import File
 from slack_mcp.schema.message import Message
 from slack_mcp.schema.search import SearchResult
 from slack_mcp.schema.user import User
@@ -45,6 +46,22 @@ def test_channel_topic_keeps_only_value():
 
     assert ch.topic is not None
     assert ch.topic.model_dump() == {"value": "hi"}  # creator / last_set dropped
+
+
+def test_message_files_parsed():
+    msg = Message.model_validate(
+        {
+            "files": [
+                {"id": "F1", "name": "img.png", "url_private_download": "https://x"}
+            ]
+        }
+    )
+
+    assert msg.files is not None
+    assert len(msg.files) == 1
+    assert isinstance(msg.files[0], File)
+    assert msg.files[0].id == "F1"
+    assert msg.files[0].url_private_download == "https://x"
 
 
 def test_message_reactions_drop_users():

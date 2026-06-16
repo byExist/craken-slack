@@ -5,3 +5,6 @@ __pycache__/
 .vscode/
 .pytest_cache/
 .coverage
+
+# Local reference docs (may contain example secrets from public specs)
+docs/

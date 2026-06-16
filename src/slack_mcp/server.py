@@ -45,6 +45,7 @@ _bind(
         tools.list_users,
         tools.get_user,
         tools.get_file,
+        tools.download_file,
         tools.search_messages,
         tools.post_message,
         tools.update_message,

@@ -7,6 +7,9 @@ parsed into the right typed model.
 
 from unittest.mock import MagicMock
 
+import pytest
+from pytest_mock import MockerFixture
+
 from slack_mcp import client
 from slack_mcp.schema.auth import AuthTest
 from slack_mcp.schema.channel import Channel, ChannelList
@@ -211,6 +214,43 @@ def test_get_file_extracts_file(slack_api: MagicMock):
     slack_api.files_info.assert_called_once_with(file="F1")
     assert isinstance(result, File)
     assert result.name == "report.pdf"
+
+
+def test_download_file_fetches_with_bearer_token(
+    slack_api: MagicMock, mocker: MockerFixture
+):
+    slack_api.files_info.return_value = response(
+        {
+            "ok": True,
+            "file": {
+                "id": "F1",
+                "name": "img.png",
+                "url_private_download": "https://files.slack.com/img.png",
+            },
+        }
+    )
+    fake_resp = MagicMock()
+    fake_resp.__enter__ = lambda s: s
+    fake_resp.__exit__ = MagicMock(return_value=False)
+    fake_resp.read.return_value = b"\x89PNG"
+    fake_resp.headers.get.return_value = "image/png"
+    mock_urlopen = mocker.patch("slack_mcp.client.urlopen", return_value=fake_resp)
+
+    data, content_type = client.download_file("F1")
+
+    assert data == b"\x89PNG"
+    assert content_type == "image/png"
+    req = mock_urlopen.call_args[0][0]
+    assert req.get_header("Authorization") == "Bearer xoxb-test"
+
+
+def test_download_file_raises_when_no_url(slack_api: MagicMock):
+    slack_api.files_info.return_value = response(
+        {"ok": True, "file": {"id": "F1", "name": "report.pdf"}}
+    )
+
+    with pytest.raises(ValueError, match="F1"):
+        client.download_file("F1")
 
 
 # --- Write ---

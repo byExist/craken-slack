@@ -4,7 +4,7 @@ from unittest.mock import call
 
 from pytest_mock import MockerFixture
 
-from slack_mcp import client, tools
+from slack_mcp import client, files, tools
 
 
 def test_get_current_user_delegates(mocker: MockerFixture):
@@ -101,6 +101,14 @@ def test_get_file_delegates(mocker: MockerFixture):
 
     assert tools.get_file("F1") is sentinel
     assert fn.call_args == call("F1")
+
+
+def test_download_file_delegates(mocker: MockerFixture):
+    mocker.patch.object(client, "download_file", return_value=(b"data", "image/png"))
+    sentinel = object()
+    mocker.patch.object(files, "write_temp", return_value=sentinel)
+
+    assert tools.download_file("F1") is sentinel
 
 
 def test_post_message_delegates(mocker: MockerFixture):

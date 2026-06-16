@@ -41,6 +41,7 @@ _TOOL_SCOPES: dict[str, frozenset[str]] = {
     "list_users": frozenset({"users:read"}),
     "get_user": frozenset({"users:read"}),
     "get_file": frozenset({"files:read"}),
+    "download_file": frozenset({"files:read"}),
     "search_messages": frozenset({"search:read"}),
     "post_message": frozenset({"chat:write"}),
     "update_message": frozenset({"chat:write"}),

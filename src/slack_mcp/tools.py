@@ -10,7 +10,7 @@ from typing import Annotated, TypeAlias
 
 from pydantic import Field
 
-from slack_mcp import cache, client
+from slack_mcp import cache, client, files
 from slack_mcp.schema.auth import AuthTest
 from slack_mcp.schema.channel import Channel, ChannelList
 from slack_mcp.schema.file import File
@@ -157,6 +157,14 @@ def get_file(
 ) -> File:
     """Get a shared file's metadata — name, type, size, and download URL."""
     return client.get_file(file_id)
+
+
+def download_file(
+    file_id: Annotated[str, Field(description="File ID (F0123ABCD).")],
+) -> str:
+    """Download a shared file to a local temp path; returns the saved path."""
+    data, content_type = client.download_file(file_id)
+    return files.write_temp(data, content_type)
 
 
 # --- Write ---

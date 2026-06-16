@@ -15,6 +15,7 @@ SLACK_TOKEN - Slack OAuth token (xoxb-… bot or xoxp-… user)
 """
 
 from typing import Any, cast
+from urllib.request import Request, urlopen
 
 from slack_sdk import WebClient
 from slack_sdk.web import SlackResponse
@@ -174,6 +175,18 @@ def join_channel(channel_id: str) -> Channel:
 def get_file(file_id: str) -> File:
     resp = call(lambda: _get_client().files_info(file=file_id))
     return File.model_validate(_data(resp)["file"])
+
+
+def download_file(file_id: str) -> tuple[bytes, str]:
+    f = get_file(file_id)
+    url = f.url_private_download or f.url_private
+    if not url:
+        raise ValueError(f"File {file_id} has no download URL")
+    token = get_auth().token.get_secret_value()
+    req = Request(url, headers={"Authorization": f"Bearer {token}"})
+    with urlopen(req) as resp:
+        content_type: str = resp.headers.get("Content-Type", "application/octet-stream")
+        return resp.read(), content_type
 
 
 # ---------------------------------------------------------------------------

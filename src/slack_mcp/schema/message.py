@@ -2,6 +2,7 @@
 
 from slack_mcp.schema.base import SlackModel
 from slack_mcp.schema.channel import ResponseMetadata
+from slack_mcp.schema.file import File
 
 
 class Reaction(SlackModel):
@@ -27,6 +28,7 @@ class Message(SlackModel):
     thread_ts: str | None = None
     reply_count: int | None = None
     reactions: list[Reaction] | None = None
+    files: list[File] | None = None
 
 
 class MessageList(SlackModel):
