@@ -230,8 +230,8 @@ def test_download_file_fetches_with_bearer_token(
         }
     )
     fake_resp = MagicMock()
-    fake_resp.__enter__ = lambda s: s
-    fake_resp.__exit__ = MagicMock(return_value=False)
+    fake_resp.__enter__.return_value = fake_resp
+    fake_resp.__exit__.return_value = False
     fake_resp.read.return_value = b"\x89PNG"
     fake_resp.headers.get.return_value = "image/png"
     mock_urlopen = mocker.patch("slack_mcp.client.urlopen", return_value=fake_resp)
