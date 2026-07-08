@@ -11,6 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from slack_mcp.schema.channel import Channel
+from slack_mcp.schema.user import User
+from slack_mcp.schema.usergroup import Usergroup
+
 
 @dataclass
 class FakeResponse:
@@ -52,3 +56,32 @@ def channel(**over: Any) -> dict[str, Any]:
 
 def message(**over: Any) -> dict[str, Any]:
     return {"type": "message", "text": "", "ts": "1.1", **over}
+
+
+def usergroup(**over: Any) -> dict[str, Any]:
+    return {
+        "id": "S1",
+        "team_id": "T1",
+        "handle": "devs",
+        "name": "Devs",
+        "description": "",
+        "is_external": False,
+        "date_delete": 0,
+        **over,
+    }
+
+
+# Model forms — for tests that patch a typed client function's return value
+# (which yields models, not raw response dicts).
+
+
+def channel_model(**over: Any) -> Channel:
+    return Channel.model_validate(channel(**over))
+
+
+def user_model(**over: Any) -> User:
+    return User.model_validate(user(**over))
+
+
+def usergroup_model(**over: Any) -> Usergroup:
+    return Usergroup.model_validate(usergroup(**over))

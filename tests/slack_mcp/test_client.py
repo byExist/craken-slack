@@ -18,7 +18,7 @@ from slack_mcp.schema.message import MessageList, Permalink, PostedMessage
 from slack_mcp.schema.search import SearchResult
 from slack_mcp.schema.user import User, UserList
 from slack_mcp.schema.usergroup import UsergroupList
-from support import channel, message, response, user
+from support import channel, message, response, user, usergroup
 
 
 # --- Read ---
@@ -136,20 +136,7 @@ def test_get_user_extracts_user(slack_api: MagicMock):
 
 def test_list_usergroups_calls_usergroups_list(slack_api: MagicMock):
     slack_api.usergroups_list.return_value = response(
-        {
-            "ok": True,
-            "usergroups": [
-                {
-                    "id": "S1",
-                    "team_id": "T1",
-                    "handle": "devs",
-                    "name": "Devs",
-                    "description": "",
-                    "is_external": False,
-                    "date_delete": 0,
-                }
-            ],
-        }
+        {"ok": True, "usergroups": [usergroup()]}
     )
 
     result = client.list_usergroups()

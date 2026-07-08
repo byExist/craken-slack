@@ -10,10 +10,10 @@ import pytest
 from pytest_mock import MockerFixture
 
 from slack_mcp import cache, client
-from slack_mcp.schema.channel import Channel, ChannelList, ResponseMetadata
-from slack_mcp.schema.user import User, UserList
-from slack_mcp.schema.usergroup import Usergroup, UsergroupList
-from support import channel, user
+from slack_mcp.schema.channel import ChannelList, ResponseMetadata
+from slack_mcp.schema.user import UserList
+from slack_mcp.schema.usergroup import UsergroupList
+from support import channel_model, user_model, usergroup_model
 
 
 # --- Channels ---
@@ -30,9 +30,7 @@ def test_resolve_channel_by_name_then_warm_hit(mocker: MockerFixture):
     fetch = mocker.patch.object(
         client,
         "list_channels",
-        return_value=ChannelList(
-            channels=[Channel.model_validate(channel(name="general"))]
-        ),
+        return_value=ChannelList(channels=[channel_model(name="general")]),
     )
 
     assert cache.resolve_channel("#general") == "C1"  # cold build
@@ -44,9 +42,7 @@ def test_resolve_channel_not_found_raises(mocker: MockerFixture):
     mocker.patch.object(
         client,
         "list_channels",
-        return_value=ChannelList(
-            channels=[Channel.model_validate(channel(name="general"))]
-        ),
+        return_value=ChannelList(channels=[channel_model(name="general")]),
     )
 
     with pytest.raises(ValueError, match="nope"):
@@ -58,11 +54,11 @@ def test_resolve_channel_refreshes_on_miss(mocker: MockerFixture):
         client,
         "list_channels",
         side_effect=[
-            ChannelList(channels=[Channel.model_validate(channel(name="general"))]),
+            ChannelList(channels=[channel_model(name="general")]),
             ChannelList(
                 channels=[
-                    Channel.model_validate(channel(name="general")),
-                    Channel.model_validate(channel(id="C2", name="new")),
+                    channel_model(name="general"),
+                    channel_model(id="C2", name="new"),
                 ]
             ),
         ],
@@ -78,12 +74,10 @@ def test_resolve_channel_paginates(mocker: MockerFixture):
         "list_channels",
         side_effect=[
             ChannelList(
-                channels=[Channel.model_validate(channel(name="general"))],
+                channels=[channel_model(name="general")],
                 response_metadata=ResponseMetadata(next_cursor="cur"),
             ),
-            ChannelList(
-                channels=[Channel.model_validate(channel(id="C2", name="random"))]
-            ),
+            ChannelList(channels=[channel_model(id="C2", name="random")]),
         ],
     )
 
@@ -96,13 +90,9 @@ def test_resolve_channel_skips_incomplete_entries(mocker: MockerFixture):
         "list_channels",
         return_value=ChannelList(
             channels=[
-                Channel.model_validate(channel(name="general")),
-                Channel.model_validate(
-                    channel(id="C2", name="")
-                ),  # empty name → skipped
-                Channel.model_validate(
-                    channel(id="", name="ghost")
-                ),  # empty id → skipped
+                channel_model(name="general"),
+                channel_model(id="C2", name=""),  # empty name → skipped
+                channel_model(id="", name="ghost"),  # empty id → skipped
             ]
         ),
     )
@@ -126,7 +116,7 @@ def test_resolve_user_by_handle_then_warm_hit(mocker: MockerFixture):
     fetch = mocker.patch.object(
         client,
         "list_users",
-        return_value=UserList(members=[User.model_validate(user(name="alice"))]),
+        return_value=UserList(members=[user_model(name="alice")]),
     )
 
     assert cache.resolve_user("@alice") == "U1"  # cold build
@@ -138,7 +128,7 @@ def test_resolve_user_not_found_raises(mocker: MockerFixture):
     mocker.patch.object(
         client,
         "list_users",
-        return_value=UserList(members=[User.model_validate(user(name="alice"))]),
+        return_value=UserList(members=[user_model(name="alice")]),
     )
 
     with pytest.raises(ValueError, match="bob"):
@@ -150,11 +140,11 @@ def test_resolve_user_refreshes_on_miss(mocker: MockerFixture):
         client,
         "list_users",
         side_effect=[
-            UserList(members=[User.model_validate(user(name="alice"))]),
+            UserList(members=[user_model(name="alice")]),
             UserList(
                 members=[
-                    User.model_validate(user(name="alice")),
-                    User.model_validate(user(id="U2", name="bob")),
+                    user_model(name="alice"),
+                    user_model(id="U2", name="bob"),
                 ]
             ),
         ],
@@ -171,12 +161,12 @@ def test_resolve_user_paginates_and_skips_incomplete(mocker: MockerFixture):
         side_effect=[
             UserList(
                 members=[
-                    User.model_validate(user(name="alice")),
-                    User.model_validate(user(id="U2", name="")),  # empty name → skipped
+                    user_model(name="alice"),
+                    user_model(id="U2", name=""),  # empty name → skipped
                 ],
                 response_metadata=ResponseMetadata(next_cursor="cur"),
             ),
-            UserList(members=[User.model_validate(user(id="U3", name="bob"))]),
+            UserList(members=[user_model(id="U3", name="bob")]),
         ],
     )
 
@@ -190,7 +180,7 @@ def test_substitute_user_mention(mocker: MockerFixture):
     mocker.patch.object(
         client,
         "list_users",
-        return_value=UserList(members=[User.model_validate(user(name="alice"))]),
+        return_value=UserList(members=[user_model(name="alice")]),
     )
     mocker.patch.object(
         client, "list_usergroups", return_value=UsergroupList(usergroups=[])
@@ -206,24 +196,8 @@ def test_substitute_usergroup_mention_skips_incomplete(mocker: MockerFixture):
         "list_usergroups",
         return_value=UsergroupList(
             usergroups=[
-                Usergroup(
-                    id="S1",
-                    team_id="T1",
-                    handle="devs",
-                    name="Devs",
-                    description="",
-                    is_external=False,
-                    date_delete=0,
-                ),
-                Usergroup(
-                    id="S2",
-                    team_id="T1",
-                    handle="",  # no usable handle → skipped
-                    name="Nameless",
-                    description="",
-                    is_external=False,
-                    date_delete=0,
-                ),
+                usergroup_model(),
+                usergroup_model(id="S2", handle=""),  # empty handle → skipped
             ]
         ),
     )
@@ -256,9 +230,7 @@ def test_substitute_channel_reference(mocker: MockerFixture):
     mocker.patch.object(
         client,
         "list_channels",
-        return_value=ChannelList(
-            channels=[Channel.model_validate(channel(name="general"))]
-        ),
+        return_value=ChannelList(channels=[channel_model(name="general")]),
     )
 
     assert cache.substitute_mentions("see #general please") == "see <#C1> please"
