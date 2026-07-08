@@ -18,7 +18,7 @@ from slack_mcp.schema.message import MessageList, Permalink, PostedMessage
 from slack_mcp.schema.search import SearchResult
 from slack_mcp.schema.user import User, UserList
 from slack_mcp.schema.usergroup import UsergroupList
-from support import response
+from support import channel, message, response, user
 
 
 # --- Read ---
@@ -26,7 +26,14 @@ from support import response
 
 def test_get_current_user_calls_auth_test(slack_api: MagicMock):
     slack_api.auth_test.return_value = response(
-        {"ok": True, "user": "alice", "user_id": "U1"}
+        {
+            "ok": True,
+            "url": "https://x.slack.com/",
+            "team": "T",
+            "user": "alice",
+            "team_id": "T1",
+            "user_id": "U1",
+        }
     )
 
     result = client.get_current_user()
@@ -55,7 +62,7 @@ def test_granted_scopes_none_when_header_absent(slack_api: MagicMock):
 
 def test_list_channels_passes_params(slack_api: MagicMock):
     slack_api.conversations_list.return_value = response(
-        {"channels": [{"id": "C1", "name": "general"}]}
+        {"channels": [channel(name="general")]}
     )
 
     result = client.list_channels(types="public_channel", limit=50, cursor="cur")
@@ -69,7 +76,7 @@ def test_list_channels_passes_params(slack_api: MagicMock):
 
 def test_get_channel_extracts_channel(slack_api: MagicMock):
     slack_api.conversations_info.return_value = response(
-        {"channel": {"id": "C1", "name": "general"}}
+        {"channel": channel(name="general")}
     )
 
     result = client.get_channel("C1")
@@ -108,7 +115,7 @@ def test_get_thread_replies_passes_ts(slack_api: MagicMock):
 
 
 def test_list_users_passes_params(slack_api: MagicMock):
-    slack_api.users_list.return_value = response({"members": [{"id": "U1"}]})
+    slack_api.users_list.return_value = response({"members": [user()]})
 
     result = client.list_users(limit=5, cursor=None)
 
@@ -118,9 +125,7 @@ def test_list_users_passes_params(slack_api: MagicMock):
 
 
 def test_get_user_extracts_user(slack_api: MagicMock):
-    slack_api.users_info.return_value = response(
-        {"user": {"id": "U1", "real_name": "Alice"}}
-    )
+    slack_api.users_info.return_value = response({"user": user(real_name="Alice")})
 
     result = client.get_user("U1")
 
@@ -198,7 +203,7 @@ def test_get_permalink_passes_params(slack_api: MagicMock):
 
 def test_open_dm_extracts_channel(slack_api: MagicMock):
     slack_api.conversations_open.return_value = response(
-        {"ok": True, "channel": {"id": "D1"}}
+        {"ok": True, "channel": channel(id="D1", is_im=True)}
     )
 
     result = client.open_dm("U1,U2")
@@ -210,7 +215,7 @@ def test_open_dm_extracts_channel(slack_api: MagicMock):
 
 def test_join_channel_extracts_channel(slack_api: MagicMock):
     slack_api.conversations_join.return_value = response(
-        {"ok": True, "channel": {"id": "C1", "name": "general"}}
+        {"ok": True, "channel": channel(name="general")}
     )
 
     result = client.join_channel("C1")
@@ -274,7 +279,7 @@ def test_download_file_raises_when_no_url(slack_api: MagicMock):
 
 def test_post_message_passes_text_and_thread(slack_api: MagicMock):
     slack_api.chat_postMessage.return_value = response(
-        {"ok": True, "channel": "C1", "ts": "1.2"}
+        {"ok": True, "channel": "C1", "ts": "1.2", "message": message()}
     )
 
     result = client.post_message("C1", "hello", thread_ts="1.1")
@@ -288,7 +293,7 @@ def test_post_message_passes_text_and_thread(slack_api: MagicMock):
 
 def test_update_message_passes_ts_and_text(slack_api: MagicMock):
     slack_api.chat_update.return_value = response(
-        {"ok": True, "channel": "C1", "ts": "1.2"}
+        {"ok": True, "channel": "C1", "ts": "1.2", "message": message()}
     )
 
     result = client.update_message("C1", "1.2", "edited")

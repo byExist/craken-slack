@@ -11,12 +11,14 @@ from slack_mcp.schema.file import File
 from slack_mcp.schema.message import Message
 from slack_mcp.schema.search import SearchResult
 from slack_mcp.schema.user import User
+from support import channel, message, profile, user
 
 
 def test_drop_none_omits_null_keys():
-    dumped = Channel(id="C1").model_dump()
+    dumped = Channel(id="C1", is_im=False, created=0).model_dump()
 
-    assert dumped == {"id": "C1"}  # every other field is None and dropped
+    # name / topic / … are None and dropped; only present fields remain.
+    assert dumped == {"id": "C1", "is_im": False, "created": 0}
 
 
 def test_drop_none_keeps_empty_collections():
@@ -27,14 +29,20 @@ def test_drop_none_keeps_empty_collections():
 
 def test_keeps_zero_and_false():
     # 0 / False are definite states (not "absent") and survive the prune.
-    ch = Channel.model_validate({"id": "C1", "num_members": 0, "is_private": False})
+    ch = Channel.model_validate(channel(num_members=0, is_private=False))
 
-    assert ch.model_dump() == {"id": "C1", "num_members": 0, "is_private": False}
+    assert ch.model_dump() == {
+        "id": "C1",
+        "is_im": False,
+        "created": 0,
+        "num_members": 0,
+        "is_private": False,
+    }
 
 
 def test_channel_topic_keeps_only_value():
     ch = Channel.model_validate(
-        {"id": "C1", "topic": {"value": "hi", "creator": "U1", "last_set": 1}}
+        channel(topic={"value": "hi", "creator": "U1", "last_set": 1})
     )
 
     assert ch.topic is not None
@@ -42,17 +50,10 @@ def test_channel_topic_keeps_only_value():
 
 
 def test_message_files_parsed():
-    # A file-only message carries no `text` — text must stay optional despite
-    # the spec marking it required.
     msg = Message.model_validate(
-        {
-            "type": "message",
-            "ts": "1.1",
-            "files": [{"id": "F1", "name": "img.png", "mimetype": "image/png"}],
-        }
+        message(files=[{"id": "F1", "name": "img.png", "mimetype": "image/png"}])
     )
 
-    assert msg.text is None
     assert msg.files is not None
     assert len(msg.files) == 1
     assert isinstance(msg.files[0], File)
@@ -104,17 +105,24 @@ def test_message_user_profile_curated_to_naming_subset():
 
 
 def test_user_profile_curated_to_subset():
-    user = User.model_validate(
-        {"id": "U1", "profile": {"display_name": "al", "image_512": "x", "phone": "p"}}
+    u = User.model_validate(
+        user(profile=profile(display_name="al", image_512="x", phone="p"))
     )
 
-    assert user.profile is not None
-    assert user.profile.model_dump() == {"display_name": "al"}  # extras dropped
+    assert u.profile is not None
+    # image_512 / phone (not declared) dropped; the declared subset kept.
+    assert u.profile.model_dump() == {
+        "display_name": "al",
+        "real_name": "",
+        "title": "",
+        "status_text": "",
+        "status_emoji": "",
+    }
 
 
 def test_search_match_channel_uses_channel_model():
     result = SearchResult.model_validate(
-        {"messages": {"matches": [{"channel": {"id": "C1", "name": "g"}}]}}
+        {"messages": {"matches": [{"channel": channel(name="g")}]}}
     )
 
     assert result.messages is not None

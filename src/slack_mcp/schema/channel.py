@@ -13,7 +13,7 @@ class ChannelText(SlackModel):
     """A channel's topic or purpose. Slack returns ``{value, creator, last_set}``;
     only the text ``value`` is kept."""
 
-    value: str | None = None
+    value: str
 
 
 class Channel(SlackModel):
@@ -22,16 +22,16 @@ class Channel(SlackModel):
     Slack API: the ``channel`` object from conversations.* endpoints.
     """
 
-    id: str | None = None
+    id: str
     name: str | None = None
     is_channel: bool | None = None
     is_private: bool | None = None
     is_archived: bool | None = None
-    is_im: bool | None = None
+    is_im: bool
     num_members: int | None = None
     topic: ChannelText | None = None
     purpose: ChannelText | None = None
-    created: int | None = None
+    created: int
 
 
 class ChannelList(SlackModel):

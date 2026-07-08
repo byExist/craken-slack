@@ -24,3 +24,31 @@ def response(
     data: dict[str, Any], headers: dict[str, str] | None = None
 ) -> FakeResponse:
     return FakeResponse(data) if headers is None else FakeResponse(data, headers)
+
+
+# Minimal valid payloads for schemas with required fields — spread with **over to
+# vary. Centralized here so a change to which fields are required is a one-line
+# edit, not a sweep across every test fixture.
+
+
+def profile(**over: Any) -> dict[str, Any]:
+    return {
+        "display_name": "",
+        "real_name": "",
+        "title": "",
+        "status_text": "",
+        "status_emoji": "",
+        **over,
+    }
+
+
+def user(**over: Any) -> dict[str, Any]:
+    return {"id": "U1", "name": "u1", "is_bot": False, "profile": profile(), **over}
+
+
+def channel(**over: Any) -> dict[str, Any]:
+    return {"id": "C1", "is_im": False, "created": 0, **over}
+
+
+def message(**over: Any) -> dict[str, Any]:
+    return {"type": "message", "text": "", "ts": "1.1", **over}

@@ -11,11 +11,11 @@ class Profile(SlackModel):
     fields, phone, etc.; only these few are kept so user lists stay compact.
     """
 
-    display_name: str | None = None
-    real_name: str | None = None
-    title: str | None = None
-    status_text: str | None = None
-    status_emoji: str | None = None
+    display_name: str
+    real_name: str
+    title: str
+    status_text: str
+    status_emoji: str
     email: str | None = None
 
 
@@ -26,9 +26,9 @@ class UserProfileShort(SlackModel):
     (users.info); only the naming subset is kept.
     """
 
-    name: str | None = None
-    real_name: str | None = None
-    display_name: str | None = None
+    name: str
+    real_name: str
+    display_name: str
 
 
 class User(SlackModel):
@@ -37,14 +37,14 @@ class User(SlackModel):
     Slack API: the ``user`` / ``members[]`` object from users.info / users.list.
     """
 
-    id: str | None = None
-    name: str | None = None
+    id: str
+    name: str
     real_name: str | None = None
-    is_bot: bool | None = None
+    is_bot: bool
     is_admin: bool | None = None
     deleted: bool | None = None
     tz: str | None = None
-    profile: Profile | None = None
+    profile: Profile
 
 
 class UserList(SlackModel):
