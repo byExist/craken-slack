@@ -36,7 +36,9 @@ Cursor: TypeAlias = Annotated[
 ]
 Oldest: TypeAlias = Annotated[
     str | None,
-    Field(description="Only replies after this ts, exclusive (e.g. 1700000000.000100)."),
+    Field(
+        description="Only replies after this ts, exclusive (e.g. 1700000000.000100)."
+    ),
 ]
 Emoji: TypeAlias = Annotated[
     str, Field(description="Emoji name without colons, e.g. thumbsup.")
