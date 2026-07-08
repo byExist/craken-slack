@@ -15,22 +15,16 @@ class SlackModel(BaseModel):
 
     Slack already returns snake_case keys, so no alias generation is needed
     (unlike Atlassian's camelCase). Unknown fields are ignored (Slack sends
-    many). Serialized output is pruned of values indistinguishable from absence
-    (see ``_drop_empty``) to keep MCP responses compact.
+    many). Serialization drops only ``None`` (see ``_drop_none``) to stay
+    compact while preserving empty values.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     @model_serializer(mode="wrap")
-    def _drop_empty(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """Drop keys whose value conveys nothing absence wouldn't — ``None``,
-        ``""``, and ``{}`` — keeping the output a token-lean subset of the
-        (all-optional) schema. Kept: ``[]`` (signals "no results") and ``0`` /
-        ``False`` (definite states). Runs bottom-up via the wrap handler, so a
-        submodel that prunes to ``{}`` is then dropped by its parent — empty
-        subtrees collapse away recursively."""
-        return {
-            k: v
-            for k, v in handler(self).items()
-            if v is not None and v != "" and v != {}
-        }
+    def _drop_none(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Drop only ``None`` keys — absence. Every present value, empty ones
+        included (``""``, ``{}``, ``[]``, ``0``, ``False``), is kept: "present
+        but empty" is distinct from absent. Required fields are non-optional
+        (never ``None``), so they are never dropped."""
+        return {k: v for k, v in handler(self).items() if v is not None}

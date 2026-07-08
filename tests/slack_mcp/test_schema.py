@@ -25,13 +25,6 @@ def test_drop_none_keeps_empty_collections():
     assert dumped == {"channels": []}  # [] kept; response_metadata (None) dropped
 
 
-def test_drops_empty_string_and_collapsed_submodel():
-    # "" and a submodel that prunes to {} are dropped; recursion collapses empties.
-    ch = Channel.model_validate({"id": "C1", "name": "", "topic": {"value": ""}})
-
-    assert ch.model_dump() == {"id": "C1"}  # name="" gone; topic -> {} -> gone
-
-
 def test_keeps_zero_and_false():
     # 0 / False are definite states (not "absent") and survive the prune.
     ch = Channel.model_validate({"id": "C1", "num_members": 0, "is_private": False})
