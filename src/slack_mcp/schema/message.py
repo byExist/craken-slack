@@ -3,6 +3,7 @@
 from slack_mcp.schema.base import SlackModel
 from slack_mcp.schema.channel import ResponseMetadata
 from slack_mcp.schema.file import File
+from slack_mcp.schema.user import UserProfileShort
 
 
 class Reaction(SlackModel):
@@ -22,6 +23,7 @@ class Message(SlackModel):
     type: str
     subtype: str | None = None
     user: str | None = None
+    user_profile: UserProfileShort | None = None
     bot_id: str | None = None
     text: str
     ts: str

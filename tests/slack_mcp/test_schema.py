@@ -84,6 +84,32 @@ def test_message_reactions_drop_users():
     }  # users dropped
 
 
+def test_message_user_profile_curated_to_naming_subset():
+    msg = Message.model_validate(
+        {
+            "type": "message",
+            "text": "hi",
+            "ts": "1.1",
+            "user": "U1",
+            "user_profile": {
+                "name": "alice",
+                "real_name": "Alice Kim",
+                "display_name": "al",
+                "avatar_hash": "abc",
+                "image_72": "https://x",
+                "is_restricted": False,
+            },
+        }
+    )
+
+    assert msg.user_profile is not None
+    assert msg.user_profile.model_dump() == {
+        "name": "alice",
+        "real_name": "Alice Kim",
+        "display_name": "al",
+    }  # avatar_hash / image_72 / is_restricted dropped
+
+
 def test_user_profile_curated_to_subset():
     user = User.model_validate(
         {"id": "U1", "profile": {"display_name": "al", "image_512": "x", "phone": "p"}}
