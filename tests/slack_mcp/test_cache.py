@@ -190,8 +190,24 @@ def test_substitute_usergroup_mention_skips_incomplete(mocker: MockerFixture):
         "list_usergroups",
         return_value=UsergroupList(
             usergroups=[
-                Usergroup(id="S1", handle="devs"),
-                Usergroup(id="S2", handle=None),  # incomplete → skipped
+                Usergroup(
+                    id="S1",
+                    team_id="T1",
+                    handle="devs",
+                    name="Devs",
+                    description="",
+                    is_external=False,
+                    date_delete=0,
+                ),
+                Usergroup(
+                    id="S2",
+                    team_id="T1",
+                    handle="",  # no usable handle → skipped
+                    name="Nameless",
+                    description="",
+                    is_external=False,
+                    date_delete=0,
+                ),
             ]
         ),
     )

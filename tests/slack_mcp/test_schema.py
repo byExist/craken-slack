@@ -51,9 +51,12 @@ def test_channel_topic_keeps_only_value():
 def test_message_files_parsed():
     msg = Message.model_validate(
         {
+            "type": "message",
+            "text": "",
+            "ts": "1.1",
             "files": [
                 {"id": "F1", "name": "img.png", "url_private_download": "https://x"}
-            ]
+            ],
         }
     )
 
@@ -66,7 +69,12 @@ def test_message_files_parsed():
 
 def test_message_reactions_drop_users():
     msg = Message.model_validate(
-        {"reactions": [{"name": "tada", "count": 2, "users": ["U1", "U2"]}]}
+        {
+            "type": "message",
+            "text": "",
+            "ts": "1.1",
+            "reactions": [{"name": "tada", "count": 2, "users": ["U1", "U2"]}],
+        }
     )
 
     assert msg.reactions is not None

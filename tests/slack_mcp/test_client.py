@@ -81,7 +81,10 @@ def test_get_channel_extracts_channel(slack_api: MagicMock):
 
 def test_get_channel_history_passes_params(slack_api: MagicMock):
     slack_api.conversations_history.return_value = response(
-        {"messages": [{"ts": "1.1", "text": "hi"}], "has_more": False}
+        {
+            "messages": [{"type": "message", "ts": "1.1", "text": "hi"}],
+            "has_more": False,
+        }
     )
 
     result = client.get_channel_history("C1", limit=10, cursor="cur")
@@ -128,7 +131,20 @@ def test_get_user_extracts_user(slack_api: MagicMock):
 
 def test_list_usergroups_calls_usergroups_list(slack_api: MagicMock):
     slack_api.usergroups_list.return_value = response(
-        {"ok": True, "usergroups": [{"id": "S1", "handle": "devs"}]}
+        {
+            "ok": True,
+            "usergroups": [
+                {
+                    "id": "S1",
+                    "team_id": "T1",
+                    "handle": "devs",
+                    "name": "Devs",
+                    "description": "",
+                    "is_external": False,
+                    "date_delete": 0,
+                }
+            ],
+        }
     )
 
     result = client.list_usergroups()
