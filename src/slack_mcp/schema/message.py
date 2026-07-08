@@ -10,8 +10,8 @@ class Reaction(SlackModel):
     """A reaction on a message. Slack also returns the reactor IDs (``users``),
     dropped here to keep history compact — ``count`` is the signal."""
 
-    name: str
-    count: int
+    name: str | None = None
+    count: int | None = None
 
 
 class Message(SlackModel):
@@ -20,13 +20,13 @@ class Message(SlackModel):
     Slack API: a ``messages[]`` item from conversations.history / .replies.
     """
 
-    type: str
+    type: str | None = None
     subtype: str | None = None
     user: str | None = None
     user_profile: UserProfileShort | None = None
     bot_id: str | None = None
-    text: str
-    ts: str
+    text: str | None = None
+    ts: str | None = None
     thread_ts: str | None = None
     reply_count: int | None = None
     reactions: list[Reaction] | None = None

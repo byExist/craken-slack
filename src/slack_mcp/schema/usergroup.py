@@ -10,13 +10,13 @@ class Usergroup(SlackModel):
     ``@mention`` handle; ``id`` is the ``S…`` subteam id used in ``<!subteam^S…>``.
     """
 
-    id: str
-    team_id: str
-    handle: str
-    name: str
-    description: str
-    is_external: bool
-    date_delete: int  # 0 = active, >0 = disabled
+    id: str | None = None
+    team_id: str | None = None
+    handle: str | None = None
+    name: str | None = None
+    description: str | None = None
+    is_external: bool | None = None
+    date_delete: int | None = None  # 0 = active, >0 = disabled
 
 
 class UsergroupList(SlackModel):

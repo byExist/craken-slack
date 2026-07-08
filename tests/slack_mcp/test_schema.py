@@ -49,17 +49,17 @@ def test_channel_topic_keeps_only_value():
 
 
 def test_message_files_parsed():
+    # A file-only message carries no `text` — text must stay optional despite
+    # the spec marking it required.
     msg = Message.model_validate(
         {
             "type": "message",
-            "text": "",
             "ts": "1.1",
-            "files": [
-                {"id": "F1", "name": "img.png", "mimetype": "image/png"}
-            ],
+            "files": [{"id": "F1", "name": "img.png", "mimetype": "image/png"}],
         }
     )
 
+    assert msg.text is None
     assert msg.files is not None
     assert len(msg.files) == 1
     assert isinstance(msg.files[0], File)

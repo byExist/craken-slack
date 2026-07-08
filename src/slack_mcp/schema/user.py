@@ -23,13 +23,12 @@ class UserProfileShort(SlackModel):
     """A message author's inlined profile (``Message.user_profile``).
 
     Slack API: ``objs_user_profile_short``. Distinct from the fuller ``Profile``
-    (users.info); only the naming subset is kept, and these are ``required`` in
-    the spec — set whenever ``user_profile`` is present.
+    (users.info); only the naming subset is kept.
     """
 
-    name: str
-    real_name: str
-    display_name: str
+    name: str | None = None
+    real_name: str | None = None
+    display_name: str | None = None
 
 
 class User(SlackModel):
