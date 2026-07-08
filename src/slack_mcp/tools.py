@@ -37,8 +37,7 @@ Emoji: TypeAlias = Annotated[
     str, Field(description="Emoji name without colons, e.g. thumbsup.")
 ]
 
-# Success sentinel for void operations (delete, react) — a tool call always
-# yields an explicit result rather than an empty response.
+# Success sentinel so void operations return something explicit, not empty.
 Ok: TypeAlias = Literal["ok"]
 
 

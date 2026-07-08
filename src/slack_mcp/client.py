@@ -178,8 +178,8 @@ def get_file(file_id: str) -> File:
 
 
 def download_file(file_id: str) -> tuple[bytes, str]:
-    # Slack has no download-by-id endpoint; the private URL lives on files.info.
-    # Read it straight from the raw payload — the curated File model omits URLs.
+    # Slack has no download-by-id endpoint; read url_private straight from the
+    # raw files.info payload, since the curated File model omits it.
     info = _data(call(lambda: _get_client().files_info(file=file_id)))["file"]
     url = info.get("url_private_download") or info.get("url_private")
     if not url:

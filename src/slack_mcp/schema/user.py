@@ -20,13 +20,11 @@ class Profile(SlackModel):
 
 
 class UserProfileShort(SlackModel):
-    """The compact profile Slack inlines on a message's ``user_profile``.
+    """A message author's inlined profile (``Message.user_profile``).
 
-    Slack API: ``objs_user_profile_short`` — the author's identity carried on a
-    message, so a reader can tell *who* spoke without a separate users.info
-    lookup. Distinct from ``Profile`` (the fuller users.info object); only the
-    naming subset is kept. These three are ``required`` in the spec, so — when
-    ``user_profile`` is present at all — they are always set.
+    Slack API: ``objs_user_profile_short``. Distinct from the fuller ``Profile``
+    (users.info); only the naming subset is kept, and these are ``required`` in
+    the spec — set whenever ``user_profile`` is present.
     """
 
     name: str
