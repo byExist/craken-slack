@@ -28,6 +28,7 @@ ChannelId: TypeAlias = Annotated[
 Timestamp: TypeAlias = Annotated[
     str, Field(description='Message timestamp ("ts"), e.g. 1700000000.000100.')
 ]
+FileId: TypeAlias = Annotated[str, Field(description="File ID (F0123ABCD).")]
 Limit: TypeAlias = Annotated[int, Field(description="Max results per page.")]
 Cursor: TypeAlias = Annotated[
     str | None,
@@ -80,7 +81,8 @@ def get_channel_history(
     limit: Limit = 100,
     cursor: Cursor = None,
 ) -> MessageList:
-    """Get recent messages in a channel, newest first."""
+    """Get recent messages in a channel, newest first. Thread replies aren't
+    included — use get_thread_replies for a thread."""
     return client.get_channel_history(
         cache.resolve_channel(channel_id), limit=limit, cursor=cursor
     )
@@ -116,7 +118,7 @@ def open_dm(
         ),
     ],
 ) -> Channel:
-    """Open a direct message with one or more users; returns the DM channel to post to."""
+    """Open a direct message with one or more users; returns the DM channel — post to it with post_message."""
     resolved = ",".join(cache.resolve_user(u.strip()) for u in users.split(","))
     return client.open_dm(resolved)
 
@@ -133,7 +135,7 @@ def get_permalink(channel_id: ChannelId, ts: Timestamp) -> Permalink:
 
 
 def list_users(limit: Limit = 100, cursor: Cursor = None) -> UserList:
-    """List workspace users."""
+    """List workspace users. Use get_user for one you know by ID."""
     return client.list_users(limit=limit, cursor=cursor)
 
 
@@ -164,16 +166,12 @@ def search_messages(
 # --- Files ---
 
 
-def get_file(
-    file_id: Annotated[str, Field(description="File ID (F0123ABCD).")],
-) -> File:
-    """Get a shared file's metadata — name, type, size, and download URL."""
+def get_file(file_id: FileId) -> File:
+    """Get a shared file's metadata — name, type, size, and permalink. Use download_file for the content."""
     return client.get_file(file_id)
 
 
-def download_file(
-    file_id: Annotated[str, Field(description="File ID (F0123ABCD).")],
-) -> str:
+def download_file(file_id: FileId) -> str:
     """Download a shared file to a local temp path; returns the saved path."""
     data, content_type = client.download_file(file_id)
     return files.write_temp(data, content_type)
