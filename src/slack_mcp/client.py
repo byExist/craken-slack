@@ -178,8 +178,10 @@ def get_file(file_id: str) -> File:
 
 
 def download_file(file_id: str) -> tuple[bytes, str]:
-    f = get_file(file_id)
-    url = f.url_private_download or f.url_private
+    # Slack has no download-by-id endpoint; the private URL lives on files.info.
+    # Read it straight from the raw payload — the curated File model omits URLs.
+    info = _data(call(lambda: _get_client().files_info(file=file_id)))["file"]
+    url = info.get("url_private_download") or info.get("url_private")
     if not url:
         raise ValueError(f"File {file_id} has no download URL")
     token = get_auth().token.get_secret_value()

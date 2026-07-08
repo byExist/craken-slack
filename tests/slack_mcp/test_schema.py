@@ -55,7 +55,7 @@ def test_message_files_parsed():
             "text": "",
             "ts": "1.1",
             "files": [
-                {"id": "F1", "name": "img.png", "url_private_download": "https://x"}
+                {"id": "F1", "name": "img.png", "mimetype": "image/png"}
             ],
         }
     )
@@ -64,7 +64,7 @@ def test_message_files_parsed():
     assert len(msg.files) == 1
     assert isinstance(msg.files[0], File)
     assert msg.files[0].id == "F1"
-    assert msg.files[0].url_private_download == "https://x"
+    assert msg.files[0].mimetype == "image/png"
 
 
 def test_message_reactions_drop_users():

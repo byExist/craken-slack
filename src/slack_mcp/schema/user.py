@@ -17,7 +17,6 @@ class Profile(SlackModel):
     status_text: str | None = None
     status_emoji: str | None = None
     email: str | None = None
-    image_72: str | None = None
 
 
 class UserProfileShort(SlackModel):
