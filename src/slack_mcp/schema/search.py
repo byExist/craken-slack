@@ -26,7 +26,6 @@ class SearchMessages(SlackModel):
 class SearchResult(SlackModel):
     """search.messages result."""
 
-    ok: bool | None = None
     query: str | None = None
     messages: SearchMessages | None = None
     response_metadata: ResponseMetadata | None = None

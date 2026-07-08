@@ -22,5 +22,4 @@ class Usergroup(SlackModel):
 class UsergroupList(SlackModel):
     """usergroups.list result."""
 
-    ok: bool | None = None
     usergroups: list[Usergroup] = []

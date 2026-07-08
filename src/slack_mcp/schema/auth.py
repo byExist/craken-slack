@@ -6,7 +6,6 @@ from slack_mcp.schema.base import SlackModel
 class AuthTest(SlackModel):
     """auth.test result — the authenticated identity and workspace."""
 
-    ok: bool | None = None
     url: str | None = None
     team: str | None = None
     user: str | None = None

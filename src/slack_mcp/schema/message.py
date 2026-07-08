@@ -44,7 +44,6 @@ class MessageList(SlackModel):
 class PostedMessage(SlackModel):
     """chat.postMessage / chat.update result."""
 
-    ok: bool | None = None
     channel: str | None = None
     ts: str | None = None
     message: Message | None = None
@@ -53,6 +52,5 @@ class PostedMessage(SlackModel):
 class Permalink(SlackModel):
     """chat.getPermalink result."""
 
-    ok: bool | None = None
     channel: str | None = None
     permalink: str | None = None

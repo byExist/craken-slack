@@ -6,7 +6,7 @@ Thin wrappers over ``client``. Channel and user arguments accept an ID or a name
 Slack mention tokens by ``cache``.
 """
 
-from typing import Annotated, TypeAlias
+from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field
 
@@ -36,6 +36,10 @@ Cursor: TypeAlias = Annotated[
 Emoji: TypeAlias = Annotated[
     str, Field(description="Emoji name without colons, e.g. thumbsup.")
 ]
+
+# Success sentinel for void operations (delete, react) — a tool call always
+# yields an explicit result rather than an empty response.
+Ok: TypeAlias = Literal["ok"]
 
 
 # --- Identity ---
@@ -207,16 +211,19 @@ def update_message(
     )
 
 
-def delete_message(channel: ChannelId, ts: Timestamp) -> None:
+def delete_message(channel: ChannelId, ts: Timestamp) -> Ok:
     """Delete a message."""
     client.delete_message(cache.resolve_channel(channel), ts)
+    return "ok"
 
 
-def add_reaction(channel: ChannelId, ts: Timestamp, name: Emoji) -> None:
+def add_reaction(channel: ChannelId, ts: Timestamp, name: Emoji) -> Ok:
     """Add an emoji reaction to a message."""
     client.add_reaction(cache.resolve_channel(channel), ts, name)
+    return "ok"
 
 
-def remove_reaction(channel: ChannelId, ts: Timestamp, name: Emoji) -> None:
+def remove_reaction(channel: ChannelId, ts: Timestamp, name: Emoji) -> Ok:
     """Remove an emoji reaction from a message."""
     client.remove_reaction(cache.resolve_channel(channel), ts, name)
+    return "ok"

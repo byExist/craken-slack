@@ -130,19 +130,19 @@ def test_update_message_delegates(mocker: MockerFixture):
 def test_delete_message_delegates(mocker: MockerFixture):
     fn = mocker.patch.object(client, "delete_message")
 
-    assert tools.delete_message("C1", "1.2") is None
+    assert tools.delete_message("C1", "1.2") == "ok"
     assert fn.call_args == call("C1", "1.2")
 
 
 def test_add_reaction_delegates(mocker: MockerFixture):
     fn = mocker.patch.object(client, "add_reaction")
 
-    assert tools.add_reaction("C1", "1.2", "tada") is None
+    assert tools.add_reaction("C1", "1.2", "tada") == "ok"
     assert fn.call_args == call("C1", "1.2", "tada")
 
 
 def test_remove_reaction_delegates(mocker: MockerFixture):
     fn = mocker.patch.object(client, "remove_reaction")
 
-    assert tools.remove_reaction("C1", "1.2", "tada") is None
+    assert tools.remove_reaction("C1", "1.2", "tada") == "ok"
     assert fn.call_args == call("C1", "1.2", "tada")
