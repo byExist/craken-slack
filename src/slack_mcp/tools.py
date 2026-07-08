@@ -33,6 +33,10 @@ Cursor: TypeAlias = Annotated[
     str | None,
     Field(description="Pagination cursor from a prior response (next_cursor)."),
 ]
+Oldest: TypeAlias = Annotated[
+    str | None,
+    Field(description="Only replies after this ts, exclusive (e.g. 1700000000.000100)."),
+]
 Emoji: TypeAlias = Annotated[
     str, Field(description="Emoji name without colons, e.g. thumbsup.")
 ]
@@ -85,12 +89,17 @@ def get_channel_history(
 def get_thread_replies(
     channel_id: ChannelId,
     thread_ts: Annotated[str, Field(description="ts of the thread's parent message.")],
+    oldest: Oldest = None,
     limit: Limit = 100,
     cursor: Cursor = None,
 ) -> MessageList:
-    """Get the replies in a thread."""
+    """Get the replies in a thread. The parent message is always included first."""
     return client.get_thread_replies(
-        cache.resolve_channel(channel_id), thread_ts, limit=limit, cursor=cursor
+        cache.resolve_channel(channel_id),
+        thread_ts,
+        oldest=oldest,
+        limit=limit,
+        cursor=cursor,
     )
 
 

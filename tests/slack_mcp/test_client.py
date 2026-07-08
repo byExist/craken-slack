@@ -99,10 +99,10 @@ def test_get_channel_history_passes_params(slack_api: MagicMock):
 def test_get_thread_replies_passes_ts(slack_api: MagicMock):
     slack_api.conversations_replies.return_value = response({"messages": []})
 
-    result = client.get_thread_replies("C1", "1.1", limit=10, cursor=None)
+    result = client.get_thread_replies("C1", "1.1", limit=10, cursor=None, oldest="0.9")
 
     slack_api.conversations_replies.assert_called_once_with(
-        channel="C1", ts="1.1", limit=10, cursor=None
+        channel="C1", ts="1.1", limit=10, cursor=None, oldest="0.9"
     )
     assert isinstance(result, MessageList)
 

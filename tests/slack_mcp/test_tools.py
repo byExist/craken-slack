@@ -44,7 +44,7 @@ def test_get_thread_replies_delegates(mocker: MockerFixture):
     fn = mocker.patch.object(client, "get_thread_replies", return_value=sentinel)
 
     assert tools.get_thread_replies("C1", "1.1", limit=5, cursor="c") is sentinel
-    assert fn.call_args == call("C1", "1.1", limit=5, cursor="c")
+    assert fn.call_args == call("C1", "1.1", limit=5, cursor="c", oldest=None)
 
 
 def test_list_users_delegates(mocker: MockerFixture):

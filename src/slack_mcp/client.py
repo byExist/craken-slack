@@ -108,12 +108,13 @@ def get_thread_replies(
     channel_id: str,
     thread_ts: str,
     *,
+    oldest: str | None = None,
     limit: int = 100,
     cursor: str | None = None,
 ) -> MessageList:
     resp = call(
         lambda: _get_client().conversations_replies(
-            channel=channel_id, ts=thread_ts, limit=limit, cursor=cursor
+            channel=channel_id, ts=thread_ts, oldest=oldest, limit=limit, cursor=cursor
         )
     )
     return MessageList.model_validate(_data(resp))
