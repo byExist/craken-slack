@@ -1,5 +1,6 @@
 """Base model for Slack schemas."""
 
+from collections.abc import Iterable
 from typing import Any
 
 from pydantic import (
@@ -8,6 +9,13 @@ from pydantic import (
     SerializerFunctionWrapHandler,
     model_serializer,
 )
+
+
+def keep_present(items: Iterable[tuple[str, Any]]) -> dict[str, Any]:
+    """Keep every present value — empty ones included (``""``, ``{}``, ``[]``,
+    ``0``, ``False``) — dropping only ``None`` (absence): "present but empty" is
+    distinct from absent."""
+    return {k: v for k, v in items if v is not None}
 
 
 class SlackModel(BaseModel):
@@ -23,8 +31,6 @@ class SlackModel(BaseModel):
 
     @model_serializer(mode="wrap")
     def _drop_none(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """Drop only ``None`` keys — absence. Every present value, empty ones
-        included (``""``, ``{}``, ``[]``, ``0``, ``False``), is kept: "present
-        but empty" is distinct from absent. Required fields are non-optional
-        (never ``None``), so they are never dropped."""
-        return {k: v for k, v in handler(self).items() if v is not None}
+        """Drop only ``None`` keys — see ``keep_present``. Required fields are
+        non-optional (never ``None``), so they are never dropped."""
+        return keep_present(handler(self).items())

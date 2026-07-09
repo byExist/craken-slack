@@ -61,6 +61,93 @@ def test_message_files_parsed():
     assert msg.files[0].mimetype == "image/png"
 
 
+def test_message_blocks_and_attachments_passthrough():
+    # Bot/app messages leave top-level text empty and carry content in Block Kit
+    # blocks / attachments — these must survive verbatim, not be dropped.
+    msg = Message.model_validate(
+        message(
+            text="",
+            blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": "hi"}}],
+            attachments=[{"id": 1, "fallback": "alert", "text": "detail"}],
+        )
+    )
+
+    dumped = msg.model_dump()
+    assert dumped["blocks"] == [
+        {"type": "section", "text": {"type": "mrkdwn", "text": "hi"}}
+    ]
+    assert dumped["attachments"] == [{"id": 1, "fallback": "alert", "text": "detail"}]
+
+
+def test_message_denylist_drops_bloat_keeps_content():
+    msg = Message.model_validate(
+        message(
+            bot_id="B1",
+            username="Datadog",
+            attachments=[{"id": 1, "title": "CPU"}],
+            client_msg_id="dedup",
+            team="T1",
+            icons={"image_48": "http://x"},
+            bot_profile={"id": "B1", "name": "Datadog"},
+            reply_users=["U1", "U2"],
+            subscribed=True,
+        )
+    )
+
+    dumped = msg.model_dump()
+    assert dumped["username"] == "Datadog"
+    assert dumped["attachments"] == [{"id": 1, "title": "CPU"}]
+    for junk in (
+        "client_msg_id",
+        "team",
+        "icons",
+        "bot_profile",
+        "reply_users",
+        "subscribed",
+    ):
+        assert junk not in dumped
+
+
+def test_message_extra_allow_keeps_unknown_fields():
+    # Undeclared, non-bloat fields survive as raw — no silent loss on the open,
+    # evolving message surface (future/rare fields, subtype payloads we skip).
+    msg = Message.model_validate(
+        message(comment={"comment": "nice"}, permalink="http://p", edited={"ts": "1"})
+    )
+
+    dumped = msg.model_dump()
+    assert dumped["comment"] == {"comment": "nice"}
+    assert dumped["permalink"] == "http://p"
+    assert dumped["edited"] == {"ts": "1"}
+
+
+def test_message_subtype_content_surfaced():
+    # channel_topic's content lives in `topic`; the old allowlist dropped it.
+    msg = Message.model_validate(
+        message(subtype="channel_topic", user="U1", topic="새 토픽")
+    )
+
+    dumped = msg.model_dump()
+    assert dumped["subtype"] == "channel_topic"
+    assert dumped["topic"] == "새 토픽"
+
+
+def test_denylist_is_message_local_not_base():
+    # The denylist lives in Message's serializer only — the base serializer has
+    # no notion of it. An open model that is *not* Message keeps fields named
+    # like Message-bloat, proving the rule didn't leak into the base.
+    from pydantic import ConfigDict
+
+    from slack_mcp.schema.base import SlackModel
+
+    class Other(SlackModel):
+        model_config = ConfigDict(extra="allow")
+
+    dumped = Other.model_validate({"team": "T1", "client_msg_id": "z"}).model_dump()
+
+    assert dumped == {"team": "T1", "client_msg_id": "z"}  # base has no denylist
+
+
 def test_message_reactions_drop_users():
     msg = Message.model_validate(
         {
