@@ -31,7 +31,7 @@ class Channel(SlackModel):
     num_members: int | None = None
     topic: ChannelText | None = None
     purpose: ChannelText | None = None
-    created: int
+    created: int | None = None  # absent from search.messages' slimmer channel
 
 
 class ChannelList(SlackModel):

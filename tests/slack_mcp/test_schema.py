@@ -217,3 +217,14 @@ def test_search_match_channel_uses_channel_model():
     assert match.channel is not None
     assert match.channel.id == "C1"
     assert match.channel.name == "g"
+
+
+def test_search_match_channel_without_created():
+    # search.messages' channel object omits `created`; parsing must not require it.
+    result = SearchResult.model_validate(
+        {"messages": {"matches": [{"channel": {"id": "C1", "is_im": False}}]}}
+    )
+
+    assert result.messages is not None
+    assert result.messages.matches[0].channel is not None
+    assert result.messages.matches[0].channel.created is None
