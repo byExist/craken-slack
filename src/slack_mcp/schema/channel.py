@@ -17,9 +17,10 @@ class ChannelText(SlackModel):
 
 
 class Channel(SlackModel):
-    """A Slack conversation: channel, group, or DM.
+    """A Slack conversation: channel, group, mpim, or DM.
 
-    Slack API: the ``channel`` object from conversations.* endpoints.
+    Slack API: ``objs_conversation`` (a variant union) from conversations.*, kept
+    flat — a Pydantic union breaks the whole parse on any unseen shape.
     """
 
     id: str
@@ -28,10 +29,12 @@ class Channel(SlackModel):
     is_private: bool | None = None
     is_archived: bool | None = None
     is_im: bool
+    is_mpim: bool | None = None  # group DM vs private channel
     num_members: int | None = None
     topic: ChannelText | None = None
     purpose: ChannelText | None = None
-    created: int | None = None  # absent from search.messages' slimmer channel
+    user: str | None = None  # DM partner (IM variant)
+    created: int | None = None  # omitted by search.messages
 
 
 class ChannelList(SlackModel):

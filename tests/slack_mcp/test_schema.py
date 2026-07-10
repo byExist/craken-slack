@@ -49,6 +49,22 @@ def test_channel_topic_keeps_only_value():
     assert ch.topic.model_dump() == {"value": "hi"}  # creator / last_set dropped
 
 
+def test_channel_im_variant_keeps_user():
+    # conversations.open returns an IM: `user` is its identity, `priority` is noise.
+    ch = Channel.model_validate(
+        {"id": "D1", "is_im": True, "created": 1, "user": "U9", "priority": 0.5}
+    )
+
+    assert ch.user == "U9"
+    assert "priority" not in ch.model_dump()
+
+
+def test_channel_mpim_flag_kept():
+    ch = Channel.model_validate(channel(is_im=False, is_mpim=True, is_private=True))
+
+    assert ch.is_mpim is True
+
+
 def test_message_files_parsed():
     msg = Message.model_validate(
         message(files=[{"id": "F1", "name": "img.png", "mimetype": "image/png"}])
