@@ -16,6 +16,11 @@ Two uses:
   ``#channel`` / ``@here`` etc. to Slack tokens, leaving anything that doesn't
   resolve as literal text (so over-matching is harmless), and never touching
   code, links, or already-encoded ``<…>`` tokens.
+* ``unfurl_mentions`` — the read-side inverse: rewrites encoded ``<@U…>`` /
+  ``<@S…>`` / ``<!subteam^S…>`` / ``<!here>`` tokens back to ``@handle`` /
+  ``@here`` so history reads without raw ids. An unresolved token falls back to
+  its inline label, then to the raw token — never corrupted — and non-mentions
+  (links, mrkdwn, emoji, HTML entities) are left untouched.
 """
 
 import json
@@ -41,6 +46,7 @@ _usergroups: dict[str, str] | None = None  # handle -> subteam id
 _user_names: dict[str, list[str]] | None = (
     None  # user id -> [name, real_name, display_name]
 )
+_usergroup_names: dict[str, str] | None = None  # subteam id -> handle
 
 
 def _build_channels() -> dict[str, str]:
@@ -76,6 +82,15 @@ def _build_usergroups() -> dict[str, str]:
     for group in client.list_usergroups().usergroups:
         if group.handle and group.id:
             table[group.handle] = group.id
+    return table
+
+
+def _build_usergroup_names() -> dict[str, str]:
+    """subteam id -> handle, for read-side mention unfurling."""
+    table: dict[str, str] = {}
+    for group in client.list_usergroups().usergroups:
+        if group.id and group.handle:
+            table[group.id] = group.handle
     return table
 
 
@@ -317,20 +332,89 @@ def resolve_user_profile(user_id: str) -> UserProfileShort | None:
     return UserProfileShort(name=names[0], real_name=names[1], display_name=names[2])
 
 
+def _usergroup_names_table() -> dict[str, str]:
+    global _usergroup_names  # noqa: PLW0603
+    if _usergroup_names is None:
+        _usergroup_names = _build_usergroup_names()
+    return _usergroup_names
+
+
+# One token per match, negated classes (never `<.*>`) so adjacent tokens and
+# pipes inside a label both parse; the ref/label split takes the first `|` only.
+# Only `<@…>`/`<#…>`/`<!…>` match, so `<url>` and `<url|text>` are never touched.
+_MENTION = re.compile(
+    r"<(?:"
+    r"@(?P<uid>[UWS][A-Z0-9]+)"  # <@U…>/<@W…> user, or <@S…> usergroup
+    r"|#(?P<cid>[CDG][A-Z0-9]+)"  # <#C…> channel
+    r"|!subteam\^(?P<sid>S[A-Z0-9]+)"  # <!subteam^S…> usergroup (canonical form)
+    r"|!(?P<special>here|channel|everyone)"  # <!here>/<!channel>/<!everyone>
+    r")(?:\|(?P<label>[^>]*))?>"  # optional |label
+)
+
+
+def unfurl_mentions(text: str) -> str:
+    """Rewrite encoded mention tokens to readable ``@handle`` / ``#channel``.
+
+    User (``<@U…>``) and usergroup (``<@S…>`` / ``<!subteam^S…>``) ids resolve to
+    a handle; ``<!here>`` etc. become ``@here``. Channels unfurl only from an
+    inline ``|name`` (no listing fetch). Fallback ladder per token: resolved
+    handle → inline label → the raw token, so nothing is ever corrupted.
+    """
+    if "<" not in text:
+        return text
+
+    def _sub(m: re.Match[str]) -> str:
+        label = m.group("label") or None
+        if m.group("special") is not None:
+            return f"@{m.group('special')}"
+        if m.group("cid") is not None:  # channel: label-only, no listing fetch
+            return f"#{label}" if label else m.group(0)
+        uid = m.group("uid")
+        if uid is not None and not uid.startswith("S"):
+            names = _user_names_table().get(uid)
+            resolved = names[0] if names else None
+        else:  # <@S…> or <!subteam^S…>
+            gid = uid or m.group("sid")
+            resolved = _safe_table(_usergroup_names_table).get(gid or "")
+        if resolved:
+            return f"@{resolved}"
+        return f"@{label}" if label else m.group(0)
+
+    return _MENTION.sub(_sub, text)
+
+
+def _unfurl_attachment(att: dict[str, Any]) -> None:
+    """Unfurl mentions in an attachment's prose fields, in place."""
+    for key in ("text", "pretext"):
+        val = att.get(key)
+        if isinstance(val, str) and val:
+            att[key] = unfurl_mentions(val)
+    for field in cast("list[dict[str, Any]]", att.get("fields") or []):
+        val = field.get("value")
+        if isinstance(val, str) and val:
+            field["value"] = unfurl_mentions(val)
+
+
 def enrich_messages(result: MessageList) -> MessageList:
-    """Fill ``user_profile`` (the author's name) in place where Slack didn't
-    inline it and the ``user`` resolves — raw id kept, bots included (they're in
-    users.list)."""
+    """Fill ``user_profile`` (the author's name) and unfurl in-text mention
+    tokens, both in place. The author id resolves to a name (raw id kept, bots
+    included); ``<@U…>``/usergroup tokens in the body and attachments become
+    ``@handle``. Unresolved ids/tokens keep their raw form."""
     for msg in result.messages:
         if msg.user_profile is None and msg.user:
             msg.user_profile = resolve_user_profile(msg.user)
+        if msg.text:
+            msg.text = unfurl_mentions(msg.text)
+        for att in msg.attachments or []:
+            _unfurl_attachment(att)
     return result
 
 
 def reset() -> None:
     """Clear the in-memory caches (used to isolate tests)."""
-    global _channels, _users, _usergroups, _user_names  # noqa: PLW0603
+    global _channels, _users, _usergroups, _user_names, _usergroup_names  # noqa: PLW0603
     _channels = None
     _users = None
     _usergroups = None
     _user_names = None
+    _usergroup_names = None

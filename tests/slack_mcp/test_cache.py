@@ -266,6 +266,96 @@ def test_substitute_handles_listing_failure(mocker: MockerFixture):
     assert cache.substitute_mentions("@alice") == "@alice"
 
 
+# --- Mention unfurling (read) ---
+
+
+def test_unfurl_no_tokens_is_noop():
+    assert cache.unfurl_mentions("plain text, no tokens") == "plain text, no tokens"
+
+
+def test_unfurl_user_mention_resolves_and_ignores_label(mocker: MockerFixture):
+    mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(members=[user_model(id="U1", name="alice")]),
+    )
+
+    assert cache.unfurl_mentions("hi <@U1>!") == "hi @alice!"
+    # a stale/verbose inline label is ignored — the id resolves to the handle
+    assert cache.unfurl_mentions("<@U1|Alice Kim /Team>") == "@alice"
+
+
+def test_unfurl_usergroup_both_forms(mocker: MockerFixture):
+    mocker.patch.object(client, "list_users", return_value=UserList(members=[]))
+    mocker.patch.object(
+        client,
+        "list_usergroups",
+        return_value=UsergroupList(usergroups=[usergroup_model(id="S1", handle="dba")]),
+    )
+
+    # <@S…> (human form) and <!subteam^S…> (canonical) both resolve to the handle
+    assert cache.unfurl_mentions("<@S1> and <!subteam^S1>") == "@dba and @dba"
+
+
+def test_unfurl_special_mentions():
+    assert (
+        cache.unfurl_mentions("<!here> <!channel> <!everyone>")
+        == "@here @channel @everyone"
+    )
+
+
+def test_unfurl_channel_label_only():
+    # a channel unfurls from its inline label; without one it stays raw (no fetch)
+    assert cache.unfurl_mentions("<#C1|general> vs <#C2>") == "#general vs <#C2>"
+
+
+def test_unfurl_fallback_ladder(mocker: MockerFixture):
+    mocker.patch.object(client, "list_users", return_value=UserList(members=[]))
+
+    # unresolved + label → label; unresolved + no label → raw token
+    assert cache.unfurl_mentions("<@U9|Bob> then <@U8>") == "@Bob then <@U8>"
+
+
+def test_unfurl_leaves_links_and_handles_adjacent(mocker: MockerFixture):
+    mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(
+            members=[user_model(id="U1", name="a"), user_model(id="U2", name="b")]
+        ),
+    )
+
+    # link token (starts with a scheme) is never matched; adjacent tokens each parse
+    assert (
+        cache.unfurl_mentions("<https://x.com|click> <@U1><@U2>")
+        == "<https://x.com|click> @a@b"
+    )
+
+
+def test_unfurl_usergroup_listing_failure_falls_back(mocker: MockerFixture):
+    mocker.patch.object(client, "list_usergroups", side_effect=RuntimeError("boom"))
+
+    # listing failed → empty table → label used, else raw
+    assert cache.unfurl_mentions("<@S1|dba> <@S2>") == "@dba <@S2>"
+
+
+def test_unfurl_usergroup_skips_incomplete_and_memoizes(mocker: MockerFixture):
+    fetch = mocker.patch.object(
+        client,
+        "list_usergroups",
+        return_value=UsergroupList(
+            usergroups=[
+                usergroup_model(id="S1", handle="dba"),
+                usergroup_model(id="S2", handle=""),  # empty handle → skipped
+            ]
+        ),
+    )
+
+    assert cache.unfurl_mentions("<@S1> <@S2>") == "@dba <@S2>"  # S2 unresolved → raw
+    cache.unfurl_mentions("<@S1>")  # warm
+    fetch.assert_called_once()  # table built once, then memoized
+
+
 # --- id → name reverse resolution / enrichment ---
 
 
@@ -379,6 +469,57 @@ def test_enrich_messages_keeps_slack_inlined_profile(mocker: MockerFixture):
     assert msg.user_profile is not None
     assert msg.user_profile.display_name == "inl"  # not overwritten
     fetch.assert_not_called()  # already inlined → no resolution, no fetch
+
+
+def test_enrich_messages_unfurls_text_and_attachments(mocker: MockerFixture):
+    mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(members=[user_model(id="U1", name="alice")]),
+    )
+    mocker.patch.object(
+        client,
+        "list_usergroups",
+        return_value=UsergroupList(usergroups=[usergroup_model(id="S1", handle="dba")]),
+    )
+    msg = Message.model_validate(
+        message(
+            user="U1",
+            text="ping <@U1>",
+            attachments=[
+                {
+                    "text": "cc <!subteam^S1>",
+                    "pretext": "from <@U1>",
+                    "fields": [{"value": "owner <@U1>", "title": "t"}],
+                }
+            ],
+        )
+    )
+
+    cache.enrich_messages(MessageList(messages=[msg]))
+
+    assert msg.text == "ping @alice"
+    assert msg.user_profile is not None  # author also resolved
+    att = msg.attachments[0]  # type: ignore[index]
+    assert att["text"] == "cc @dba"
+    assert att["pretext"] == "from @alice"
+    assert att["fields"][0]["value"] == "owner @alice"
+
+
+def test_enrich_messages_attachment_without_prose(mocker: MockerFixture):
+    mocker.patch.object(client, "list_users", return_value=UserList(members=[]))
+    msg = Message.model_validate(
+        message(
+            attachments=[
+                {"image_url": "http://x", "fields": [{"title": "t"}]},  # no text/value
+                {"text": 123},  # non-string text → skipped, no fields
+            ]
+        )
+    )
+
+    cache.enrich_messages(MessageList(messages=[msg]))  # no crash, nothing to unfurl
+
+    assert msg.attachments[0]["image_url"] == "http://x"  # type: ignore[index]
 
 
 # --- disk persistence (CLAUDE_PLUGIN_DATA) ---
