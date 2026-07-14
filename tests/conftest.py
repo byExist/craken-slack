@@ -16,9 +16,7 @@ from slack_sdk import WebClient
 
 from slack_mcp import cache, capabilities
 from slack_mcp import client as slack_client
-from slack_mcp.config import Auth, get_auth
-
-_FAKE_AUTH = Auth(token="xoxb-test")  # type: ignore[arg-type]
+from slack_mcp.config import get_auth, get_claude, get_slack
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +24,11 @@ def isolate_env(mocker: MockerFixture) -> None:
     """Strip real Slack config and reset the singleton + caches each test."""
     mocker.patch.dict(os.environ)  # snapshot; restored after the test
     os.environ.pop("SLACK_TOKEN", None)
+    os.environ.pop("CLAUDE_PLUGIN_DATA", None)  # default to in-memory; no disk writes
+    os.environ.pop("SLACK_CACHE_TTL", None)
     get_auth.cache_clear()
+    get_slack.cache_clear()
+    get_claude.cache_clear()
     cache.reset()
     capabilities.reset()
     mocker.patch.object(slack_client, "_client", None)
@@ -34,10 +36,11 @@ def isolate_env(mocker: MockerFixture) -> None:
 
 @pytest.fixture
 def slack_api(mocker: MockerFixture) -> MagicMock:
-    """A MagicMock(spec=WebClient) installed as the Slack client singleton."""
+    """A MagicMock(spec=WebClient) installed as the Slack client singleton, with a
+    fake token in the env so ``get_auth().token`` resolves."""
+    mocker.patch.dict(os.environ, {"SLACK_TOKEN": "xoxb-test"})
     fake = mocker.MagicMock(spec=WebClient)
     mocker.patch.object(slack_client, "_client", None)
-    mocker.patch.object(slack_client, "get_auth", lambda: _FAKE_AUTH)
 
     def _factory(token: str) -> MagicMock:
         return fake

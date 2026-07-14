@@ -6,10 +6,16 @@ refresh-on-miss, pagination, skipping incomplete entries, and not-found errors.
 The cache is reset between tests by the autouse ``isolate_env`` fixture.
 """
 
+import json
+import os
+import time
+from pathlib import Path
+
 import pytest
 from pytest_mock import MockerFixture
 
 from slack_mcp import cache, client
+from slack_mcp.schema.auth import AuthTest
 from slack_mcp.schema.channel import ChannelList, ResponseMetadata
 from slack_mcp.schema.message import Message, MessageList
 from slack_mcp.schema.user import UserList
@@ -373,3 +379,134 @@ def test_enrich_messages_keeps_slack_inlined_profile(mocker: MockerFixture):
     assert msg.user_profile is not None
     assert msg.user_profile.display_name == "inl"  # not overwritten
     fetch.assert_not_called()  # already inlined → no resolution, no fetch
+
+
+# --- disk persistence (CLAUDE_PLUGIN_DATA) ---
+
+
+def _use_disk(mocker: MockerFixture, tmp_path: Path, team_id: str = "T1") -> None:
+    """Point the cache at a tmp CLAUDE_PLUGIN_DATA and stub the team_id."""
+    mocker.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": str(tmp_path)})
+    mocker.patch.object(
+        client,
+        "get_current_user",
+        return_value=AuthTest(
+            url="u", team="t", user="usr", team_id=team_id, user_id="U0"
+        ),
+    )
+
+
+def test_disk_cache_saves_and_reloads(mocker: MockerFixture, tmp_path: Path):
+    _use_disk(mocker, tmp_path)
+    fetch = mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(
+            members=[
+                user_model(
+                    name="alice", real_name="Alice", profile=profile(display_name="al")
+                )
+            ]
+        ),
+    )
+
+    p1 = cache.resolve_user_profile("U1")  # cold → build + save
+    assert p1 is not None and p1.display_name == "al"
+    assert (tmp_path / "T1" / "users.json").exists()
+
+    cache.reset()  # simulate a fresh process
+    p2 = cache.resolve_user_profile("U1")  # served from disk
+    assert p2 is not None and p2.real_name == "Alice"
+    fetch.assert_called_once()  # not rebuilt
+
+
+def test_disk_cache_stale_rebuilds(mocker: MockerFixture, tmp_path: Path):
+    _use_disk(mocker, tmp_path)
+    path = tmp_path / "T1" / "users.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"built_at": 0, "users": {"U1": ["x", "Old", ""]}}))
+    mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(members=[user_model(real_name="New")]),
+    )
+
+    p = cache.resolve_user_profile("U1")
+    assert p is not None and p.real_name == "New"  # built_at=0 → stale → rebuilt
+
+
+def test_disk_cache_corrupt_rebuilds(mocker: MockerFixture, tmp_path: Path):
+    _use_disk(mocker, tmp_path)
+    path = tmp_path / "T1" / "users.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{ not json")
+    mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(members=[user_model(real_name="Alice")]),
+    )
+
+    p = cache.resolve_user_profile("U1")
+    assert p is not None and p.real_name == "Alice"  # corrupt → rebuilt
+
+
+def test_disk_cache_ttl_zero_never_stale(mocker: MockerFixture, tmp_path: Path):
+    _use_disk(mocker, tmp_path)
+    mocker.patch.dict(os.environ, {"SLACK_CACHE_TTL": "0"})
+    path = tmp_path / "T1" / "users.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"built_at": 0, "users": {"U1": ["x", "Old", ""]}}))
+    fetch = mocker.patch.object(client, "list_users", return_value=UserList(members=[]))
+
+    p = cache.resolve_user_profile("U1")
+    assert p is not None and p.real_name == "Old"  # ttl=0 → never expires
+    fetch.assert_not_called()
+
+
+def test_disk_cache_ttl_invalid_falls_back(mocker: MockerFixture, tmp_path: Path):
+    _use_disk(mocker, tmp_path)
+    mocker.patch.dict(os.environ, {"SLACK_CACHE_TTL": "abc"})  # → default 1h
+    path = tmp_path / "T1" / "users.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps({"built_at": time.time(), "users": {"U1": ["x", "Fresh", ""]}})
+    )
+    fetch = mocker.patch.object(client, "list_users", return_value=UserList(members=[]))
+
+    p = cache.resolve_user_profile("U1")
+    assert p is not None and p.real_name == "Fresh"  # fresh under default ttl
+    fetch.assert_not_called()
+
+
+def test_disk_cache_skipped_without_team_id(mocker: MockerFixture, tmp_path: Path):
+    _use_disk(mocker, tmp_path, team_id="")  # no team_id → can't namespace
+    mocker.patch.object(
+        client, "list_users", return_value=UserList(members=[user_model(name="alice")])
+    )
+
+    assert cache.resolve_user_profile("U1") is not None  # in-memory build
+    assert not list(tmp_path.iterdir())  # nothing persisted
+
+
+def test_disk_cache_skipped_when_auth_fails(mocker: MockerFixture, tmp_path: Path):
+    mocker.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": str(tmp_path)})
+    mocker.patch.object(client, "get_current_user", side_effect=RuntimeError("boom"))
+    mocker.patch.object(
+        client, "list_users", return_value=UserList(members=[user_model(name="alice")])
+    )
+
+    assert cache.resolve_user_profile("U1") is not None  # in-memory build
+    assert not list(tmp_path.iterdir())
+
+
+def test_disk_cache_save_failure_is_silent(mocker: MockerFixture, tmp_path: Path):
+    _use_disk(mocker, tmp_path)
+    mocker.patch.object(Path, "write_text", side_effect=OSError("readonly"))
+    mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(members=[user_model(real_name="Alice")]),
+    )
+
+    p = cache.resolve_user_profile("U1")
+    assert p is not None and p.real_name == "Alice"  # save failed → in-memory still ok

@@ -2,9 +2,10 @@
 
 Slack tools take IDs (``C0123…`` / ``U0123…``), but people — and the model —
 refer to ``#general`` or ``@alice``. This layer resolves a name or handle to an
-ID, lazily caching the workspace's listings in memory on first use. Unlike
-heavier servers it is **not** disk-persisted or boot-warmed, which keeps the
-plugin light; the cost is one listing fetch on the first lookup of a session.
+ID, lazily caching the workspace's listings in memory on first use. The name→ID
+maps stay in memory; the id→name reverse map (read enrichment) also persists to
+``CLAUDE_PLUGIN_DATA`` — per-workspace and TTL'd — so its larger build amortizes
+across restarts.
 
 Two uses:
 
@@ -17,10 +18,14 @@ Two uses:
   code, links, or already-encoded ``<…>`` tokens.
 """
 
+import json
 import re
+import time
 from collections.abc import Callable
+from pathlib import Path
+from typing import Any, cast
 
-from slack_mcp import client
+from slack_mcp import client, config
 from slack_mcp.schema.message import MessageList
 from slack_mcp.schema.user import UserProfileShort
 
@@ -241,15 +246,65 @@ def _build_user_names() -> dict[str, list[str]]:
     return rev
 
 
+def _names_cache_path() -> Path | None:
+    """Where the id→names map persists, per workspace. None when not run as a
+    plugin (no ``CLAUDE_PLUGIN_DATA``) — then it stays in-memory only, so
+    dev/test/standalone runs don't scatter files."""
+    data_dir = config.get_claude().plugin_data
+    if not data_dir:
+        return None
+    try:
+        team_id = client.get_current_user().team_id
+    except Exception:
+        return None
+    if not team_id:
+        return None
+    return Path(data_dir) / team_id / "users.json"
+
+
+def _load_names(path: Path) -> dict[str, list[str]] | None:
+    """The persisted map if present and within TTL, else None (missing, stale,
+    or corrupt → caller rebuilds)."""
+    try:
+        blob: Any = json.loads(path.read_text())
+        ttl = config.get_slack().cache_ttl
+        if ttl and time.time() - float(blob["built_at"]) > ttl:
+            return None
+        users = blob["users"]
+        return cast(dict[str, list[str]], users) if isinstance(users, dict) else None
+    except Exception:
+        return None
+
+
+def _save_names(path: Path, table: dict[str, list[str]]) -> None:
+    """Persist best-effort; a write failure just leaves the in-memory map."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"built_at": time.time(), "users": table}))
+    except Exception:
+        pass
+
+
 def _user_names_table() -> dict[str, list[str]]:
-    """Lazy build; a listing failure (e.g. missing scope) yields {} so ids stay
-    raw rather than crashing enrichment."""
+    """Lazy id→names map, persisted to ``CLAUDE_PLUGIN_DATA`` (per workspace,
+    TTL'd) so the users.list build amortizes across restarts. A listing failure
+    yields {} so ids stay raw rather than crashing enrichment."""
     global _user_names  # noqa: PLW0603
-    if _user_names is None:
-        try:
-            _user_names = _build_user_names()
-        except Exception:
-            _user_names = {}
+    if _user_names is not None:
+        return _user_names
+    path = _names_cache_path()
+    if path is not None:
+        cached = _load_names(path)
+        if cached is not None:
+            _user_names = cached
+            return _user_names
+    try:
+        _user_names = _build_user_names()
+    except Exception:
+        _user_names = {}
+        return _user_names
+    if path is not None:
+        _save_names(path, _user_names)
     return _user_names
 
 

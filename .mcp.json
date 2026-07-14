@@ -4,7 +4,8 @@
       "command": "uv",
       "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "python", "-m", "slack_mcp"],
       "env": {
-        "SLACK_TOKEN": "${user_config.slack_token}"
+        "SLACK_TOKEN": "${user_config.slack_token}",
+        "SLACK_CACHE_TTL": "${user_config.cache_ttl}"
       }
     }
   }

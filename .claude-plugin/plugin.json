@@ -10,6 +10,12 @@
       "description": "Bot token (xoxb-…) or user token (xoxp-…). Create a Slack app at api.slack.com/apps, add scopes, install it to your workspace, and copy the OAuth token. Stored in the OS keychain, not in settings.json.",
       "sensitive": true,
       "required": true
+    },
+    "cache_ttl": {
+      "type": "string",
+      "title": "Name-cache TTL (seconds)",
+      "description": "How long resolved user names are cached before rebuilding. Default 3600 (1 hour); 0 never expires. Leave blank for the default.",
+      "required": false
     }
   }
 }
