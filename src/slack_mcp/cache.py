@@ -21,6 +21,8 @@ import re
 from collections.abc import Callable
 
 from slack_mcp import client
+from slack_mcp.schema.message import MessageList
+from slack_mcp.schema.user import UserProfileShort
 
 # Slack IDs are uppercase; channel/user names and handles are lowercase, so the
 # two never collide. Channels: C (public), G (private/group), D (DM). Users:
@@ -31,6 +33,9 @@ _USER_ID = re.compile(r"[UW][A-Z0-9]+")
 _channels: dict[str, str] | None = None  # name -> channel id
 _users: dict[str, str] | None = None  # handle -> user id
 _usergroups: dict[str, str] | None = None  # handle -> subteam id
+_user_names: dict[str, list[str]] | None = (
+    None  # user id -> [name, real_name, display_name]
+)
 
 
 def _build_channels() -> dict[str, str]:
@@ -206,9 +211,71 @@ def substitute_mentions(text: str) -> str:
     return masked
 
 
+# ---------------------------------------------------------------------------
+# id -> name reverse resolution (read-side enrichment)
+# ---------------------------------------------------------------------------
+# Messages carry raw ``user`` ids; resolving them to names makes history
+# readable. One users.list pagination, held in memory; values are JSON-ready
+# lists so a later on-disk cache can serialize them unchanged.
+
+
+def _build_user_names() -> dict[str, list[str]]:
+    """id -> [name, real_name, display_name], from users.list."""
+    global _users  # noqa: PLW0603
+    rev: dict[str, list[str]] = {}
+    fwd: dict[str, str] = {}
+    cursor: str | None = None
+    while True:
+        page = client.list_users(limit=200, cursor=cursor)
+        for m in page.members:
+            if not m.id:
+                continue
+            rev[m.id] = [m.name, m.real_name or "", m.profile.display_name]
+            if m.name:
+                fwd[m.name] = m.id
+        cursor = page.response_metadata.next_cursor if page.response_metadata else None
+        if not cursor:
+            break
+    if _users is None:  # warm the forward map from the same fetch
+        _users = fwd
+    return rev
+
+
+def _user_names_table() -> dict[str, list[str]]:
+    """Lazy build; a listing failure (e.g. missing scope) yields {} so ids stay
+    raw rather than crashing enrichment."""
+    global _user_names  # noqa: PLW0603
+    if _user_names is None:
+        try:
+            _user_names = _build_user_names()
+        except Exception:
+            _user_names = {}
+    return _user_names
+
+
+def resolve_user_profile(user_id: str) -> UserProfileShort | None:
+    """Best-effort ``user`` id -> inlined author profile for read enrichment;
+    None if it can't be resolved (the caller keeps the raw id)."""
+    names = _user_names_table().get(user_id)
+    if names is None:
+        return None
+    return UserProfileShort(name=names[0], real_name=names[1], display_name=names[2])
+
+
+def enrich_messages(result: MessageList) -> MessageList:
+    """Fill ``user_profile`` (the author's name) in place where Slack didn't
+    inline it and the ``user`` resolves — raw id kept, bots included (they're in
+    users.list)."""
+    for msg in result.messages:
+        if msg.user_profile is None and msg.user:
+            msg.user_profile = resolve_user_profile(msg.user)
+    return result
+
+
 def reset() -> None:
     """Clear the in-memory caches (used to isolate tests)."""
-    global _channels, _users, _usergroups  # noqa: PLW0603
+    global _channels, _users, _usergroups, _user_names  # noqa: PLW0603
     _channels = None
     _users = None
     _usergroups = None
+    _user_names = None

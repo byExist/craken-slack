@@ -11,9 +11,10 @@ from pytest_mock import MockerFixture
 
 from slack_mcp import cache, client
 from slack_mcp.schema.channel import ChannelList, ResponseMetadata
+from slack_mcp.schema.message import Message, MessageList
 from slack_mcp.schema.user import UserList
 from slack_mcp.schema.usergroup import UsergroupList
-from support import channel_model, user_model, usergroup_model
+from support import channel_model, message, profile, user_model, usergroup_model
 
 
 # --- Channels ---
@@ -257,3 +258,118 @@ def test_substitute_handles_listing_failure(mocker: MockerFixture):
 
     # user listing failed → @alice can't resolve → left literal, no crash
     assert cache.substitute_mentions("@alice") == "@alice"
+
+
+# --- id → name reverse resolution / enrichment ---
+
+
+def test_resolve_user_profile_lazy_then_cached(mocker: MockerFixture):
+    fetch = mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(
+            members=[
+                user_model(
+                    name="alice",
+                    real_name="Alice Kim",
+                    profile=profile(display_name="al"),
+                )
+            ]
+        ),
+    )
+
+    p = cache.resolve_user_profile("U1")
+    assert p is not None
+    assert p.model_dump() == {
+        "name": "alice",
+        "real_name": "Alice Kim",
+        "display_name": "al",
+    }
+    assert cache.resolve_user_profile("U1") is not None  # warm hit
+    fetch.assert_called_once()  # built once, then cached
+
+
+def test_resolve_user_profile_miss_returns_none(mocker: MockerFixture):
+    mocker.patch.object(
+        client, "list_users", return_value=UserList(members=[user_model(name="alice")])
+    )
+
+    assert cache.resolve_user_profile("U404") is None  # not in workspace → raw id kept
+
+
+def test_resolve_user_profile_graceful_on_failure(mocker: MockerFixture):
+    mocker.patch.object(client, "list_users", side_effect=RuntimeError("boom"))
+
+    assert cache.resolve_user_profile("U1") is None  # listing failed → None, no crash
+
+
+def test_resolve_user_profile_paginates_and_skips_incomplete(mocker: MockerFixture):
+    fetch = mocker.patch.object(
+        client,
+        "list_users",
+        side_effect=[
+            UserList(
+                members=[
+                    user_model(id="", name="ghost"),  # no id → skipped entirely
+                    user_model(id="U3", name=""),  # no name → id resolves, not handle
+                ],
+                response_metadata=ResponseMetadata(next_cursor="cur"),
+            ),
+            UserList(members=[user_model(id="U2", name="bob", real_name="Bob")]),
+        ],
+    )
+
+    assert cache.resolve_user_profile("U2") is not None  # found on the 2nd page
+    assert cache.resolve_user_profile("U3") is not None  # id kept despite empty name
+    # forward map warmed from the same fetch → resolving @bob needs no refetch
+    assert cache.resolve_user("@bob") == "U2"
+    assert fetch.call_count == 2  # two pages of the one build; no extra fetch
+
+
+def test_enrich_messages_fills_user_profile(mocker: MockerFixture):
+    mocker.patch.object(
+        client,
+        "list_users",
+        return_value=UserList(
+            members=[
+                user_model(
+                    name="alice",
+                    real_name="Alice Kim",
+                    profile=profile(display_name="al"),
+                )
+            ]
+        ),
+    )
+    msgs = MessageList(
+        messages=[
+            Message.model_validate(message(user="U1")),
+            Message.model_validate(message()),  # no user → skipped
+        ]
+    )
+
+    cache.enrich_messages(msgs)
+
+    assert msgs.messages[0].user_profile is not None
+    assert msgs.messages[0].user_profile.display_name == "al"
+    assert msgs.messages[0].user == "U1"  # raw id kept
+    assert msgs.messages[1].user_profile is None  # no user → untouched
+
+
+def test_enrich_messages_keeps_slack_inlined_profile(mocker: MockerFixture):
+    fetch = mocker.patch.object(client, "list_users", return_value=UserList(members=[]))
+    msg = Message.model_validate(
+        message(
+            user="U1",
+            user_profile={
+                "name": "inlined",
+                "real_name": "Inlined",
+                "display_name": "inl",
+            },
+        )
+    )
+
+    cache.enrich_messages(MessageList(messages=[msg]))
+
+    assert msg.user_profile is not None
+    assert msg.user_profile.display_name == "inl"  # not overwritten
+    fetch.assert_not_called()  # already inlined → no resolution, no fetch

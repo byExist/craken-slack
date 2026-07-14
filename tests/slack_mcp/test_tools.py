@@ -5,6 +5,7 @@ from unittest.mock import call
 from pytest_mock import MockerFixture
 
 from slack_mcp import client, files, tools
+from slack_mcp.schema.message import MessageList
 
 
 def test_get_current_user_delegates(mocker: MockerFixture):
@@ -32,7 +33,8 @@ def test_get_channel_delegates(mocker: MockerFixture):
 
 
 def test_get_channel_history_delegates(mocker: MockerFixture):
-    sentinel = object()
+    # empty MessageList → enrich_messages wrapper is a no-op → identity holds.
+    sentinel = MessageList(messages=[])
     fn = mocker.patch.object(client, "get_channel_history", return_value=sentinel)
 
     assert tools.get_channel_history("C1", limit=5, cursor="c") is sentinel
@@ -40,7 +42,7 @@ def test_get_channel_history_delegates(mocker: MockerFixture):
 
 
 def test_get_thread_replies_delegates(mocker: MockerFixture):
-    sentinel = object()
+    sentinel = MessageList(messages=[])
     fn = mocker.patch.object(client, "get_thread_replies", return_value=sentinel)
 
     assert tools.get_thread_replies("C1", "1.1", limit=5, cursor="c") is sentinel

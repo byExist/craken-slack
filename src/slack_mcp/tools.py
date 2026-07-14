@@ -85,8 +85,10 @@ def get_channel_history(
 ) -> MessageList:
     """Get recent messages in a channel, newest first. Thread replies aren't
     included — use get_thread_replies for a thread."""
-    return client.get_channel_history(
-        cache.resolve_channel(channel_id), limit=limit, cursor=cursor
+    return cache.enrich_messages(
+        client.get_channel_history(
+            cache.resolve_channel(channel_id), limit=limit, cursor=cursor
+        )
     )
 
 
@@ -98,12 +100,14 @@ def get_thread_replies(
     cursor: Cursor = None,
 ) -> MessageList:
     """Get the replies in a thread. The parent message is always included first."""
-    return client.get_thread_replies(
-        cache.resolve_channel(channel_id),
-        thread_ts,
-        oldest=oldest,
-        limit=limit,
-        cursor=cursor,
+    return cache.enrich_messages(
+        client.get_thread_replies(
+            cache.resolve_channel(channel_id),
+            thread_ts,
+            oldest=oldest,
+            limit=limit,
+            cursor=cursor,
+        )
     )
 
 
